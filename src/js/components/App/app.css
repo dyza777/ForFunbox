@@ -1,7 +1,15 @@
 .main {
     display: flex;
     justify-content: center;
-    margin: 100px;
+    align-items: center;
+    height: 400px;
+    margin: 60px;
     padding: 100px;
     border: 1px solid black;
+}
+
+input {
+    height: 50px;
+    font-size: 40px;
+    position: relative;
 }

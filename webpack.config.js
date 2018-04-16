@@ -17,10 +17,14 @@ module.exports = {
                 }
             },
             {
-                test: /\.css/,
+                test: /\.css$/,
+                exclude: /node_modules/,
                 loaders: ['style-loader', 'css-loader'],
-                include: __dirname + '/src'
-            }
+              }, {
+                test: /\.css$/,
+                include: /node_modules/,
+                loaders: ['style-loader', 'css-loader'],
+              }
         ]
     },
     resolve: {
