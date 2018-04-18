@@ -1,3 +1,6 @@
+const CopyWebpackPlugin = require('copy-webpack-plugin');
+const path = require('path');
+
 module.exports = {
     entry: [
         './src/index.js'
@@ -20,18 +23,31 @@ module.exports = {
                 test: /\.css$/,
                 exclude: /node_modules/,
                 loaders: ['style-loader', 'css-loader'],
-              }, {
+            }, {
                 test: /\.css$/,
                 include: /node_modules/,
                 loaders: ['style-loader', 'css-loader'],
-              }
+            }, {
+                test: /\.(jpe?g|png|gif|svg)$/i,
+                use: [
+                  'url-loader?limit=10000',
+                  'img-loader'
+                ]
+            }
         ]
     },
+    plugins: [
+        new CopyWebpackPlugin([{
+            from: path.join(__dirname, 'src/img'),
+            to: 'img'
+        }])
+    ],
     resolve: {
         extensions: ['', '.js', '.jsx']
     },
     devServer: {
         historyApiFallback: true,
-        contentBase: './'
+        contentBase: './',
+        disableHostCheck: true
 }
 };
