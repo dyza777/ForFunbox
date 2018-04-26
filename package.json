@@ -1,9 +1,9 @@
 {
-  "name": "ForFunbox",
+  "name": "Waypoints",
   "version": "1.0.0",
-  "description": "Test Task",
+  "description": "simple application with yandex maps",
   "main": "index.js",
-  "repository": "git@github.com:dyza777/ForFunbox.git",
+  "repository": "git@github.com:dyza777/Waypoints.git",
   "scripts": {
     "start": "node ./node_modules/webpack-dev-server/bin/webpack-dev-server.js",
     "test": "jest"

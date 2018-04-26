@@ -52,31 +52,24 @@ describe(
 
         });
 
-        test('При нажатии Enter с валидным значением появляется элемент списка', async () => {
+        test('При нажатии Enter появляется элемент списка', async () => {
             await page.$eval('input', e => e.click());
             await page.type('input', 'Moscow');
             await page.keyboard.press('Enter');
 
             await page.waitForSelector('.point', { timeout: 5000, visible: true });
 
-            const point = await page.evaluate(() => {
+            const pointText = await page.evaluate(() => {
+                return document.querySelector('.point-text').innerText;
+              });
+
+            const pointExists = await page.evaluate(() => {
                 return document.querySelector('.point') ? true : false;
               });
 
-            expect (point).toBe(true)
+            expect (pointExists).toBe(true)
+            expect (pointText).toBe('Moscow')
 
-        });
-
-        test('При нажатии Enter с невалидным значением элемент списка не появляется', async () => {
-            await page.$eval('input', e => e.click());
-            await page.type('input', 'asdasdasdasd');
-            await page.keyboard.press('Enter');
-
-            const point = await page.evaluate(() => {
-                return document.querySelector('.point') ? true : false;
-              });
-
-            expect (point).toBe(false)
         });
 
         test('При нажатии на крестик элемент списка исчезает', async () => {

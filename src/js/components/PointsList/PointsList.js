@@ -12,8 +12,8 @@ const SortableItem = SortableElement(({value, deletePoint, index}) => (
 const SortableList = SortableContainer(({items, deletePoint}) => {
   return (
     <ul id="style-3" className='points-list'>
-      {items.map((value, index) => (
-        <SortableItem deletePoint={deletePoint} key={`item-${index}`} index={index} value={value} />
+      {items.map((point, index) => (
+        <SortableItem deletePoint={deletePoint} key={`item-${index}`} index={index} value={point.title} />
       ))}
     </ul>
   );

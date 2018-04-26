@@ -14,9 +14,7 @@ export default class App extends Component {
         this.state = {
             points: [],
             inputValue: '',
-            currentRoute: null,
-            draggableInitialCoords: null,
-            isError: false
+            currentLine: null
         }
 
         this.map = null;
@@ -25,7 +23,7 @@ export default class App extends Component {
 
 
     render() {
-        const { points, inputValue, isError } = this.state;
+        const { points, inputValue } = this.state;
 
         return (
             <div className='main'>
@@ -33,25 +31,44 @@ export default class App extends Component {
                     <input onChange={this.handleChangeInput} value={inputValue} onKeyUp={this.handleInputSubmit}/>
                     <PointsList sortPoints={this.sortPoints} deletePoint={this.deletePoint} points={points} />
                 </div>
-                { isError &&
-                    <span className='error'> Не удалось простроить маршрут :( </span>
-                }
                 <div id='map' />
             </div>
         );
     }
 
+    putPlacemark = (point, index) => {
+        var placemark = new window.ymaps.Placemark(point.coords, { 
+            iconContent: index,
+            balloonContent: `<div><strong>${point.title}</strong><p>${point.address}</p></div>`
+        }, { draggable: true });
+        this.map.geoObjects.add(placemark);
+        placemark.events.add('dragend', (e) => this.pointDragEnd(placemark));
+
+        return placemark;
+    };
+
+    buildNewLine = newPoints => {
+        const line = new window.ymaps.Polyline(newPoints.map(point => point.coords))
+
+        this.map.geoObjects.remove(this.state.currentLine);
+        this.map.geoObjects.add(line);
+
+        return line;
+    }
+
     sortPoints = ({oldIndex, newIndex}) => {
         if (this.state.points.length < 2) return;
-        this.map.geoObjects.removeAll();
         const newPoints = arrayMove(this.state.points, oldIndex, newIndex);
 
-        window.ymaps.route(newPoints)
-            .then(route => this.handleAddRoute(route))
-            .catch(err => this.routeBuildingError(err, newPoints))
+        newPoints.forEach((point, index) => point.placemark.properties.set({
+            iconContent: index + 1
+        }));
+
+        const line = this.buildNewLine(newPoints);
         
         this.setState({
-          points: newPoints
+          points: newPoints,
+          currentLine: line
         });
       };
 
@@ -65,104 +82,59 @@ export default class App extends Component {
         this.map = myMap;
     }
 
-    handleAddRoute = (route, newPoints) => {
-        this.map.geoObjects.add(route);
-        this.setState({currentRoute: route, draggableInitialCoords: null});
-        if (newPoints) {
-            this.setState({ points: newPoints})
-        }
-        route.getWayPoints().each(point => {
-            point.events.add('dragend', (e) => this.pointDragEnd(point));
-            point.events.add('dragstart', (e) => this.pointDragStart(point));
-        });
-        route.getWayPoints().options.set({
-            draggable: true
-        });
-
-        this.setState({ isError: false })
-    }
-
     pointDragEnd = (point) => {
         const pointIndex = point.properties.get('iconContent') - 1;
         window.ymaps.geocode(point.geometry.getCoordinates())
             .then(result => {
                 const newPoints = this.state.points.slice();
 
-                this.map.geoObjects.removeAll();
-
-                newPoints.splice(pointIndex, 1, result.geoObjects.get(0).properties.get('text'));
-
-                if (newPoints.length === 1) {
-                    this.setState({ points: newPoints });
-                    var placemark = new window.ymaps.Placemark(result.geoObjects.get(0).geometry.getCoordinates(), { 
-                        iconContent: 1,
-                        balloonContent: result.geoObjects.get(0).properties.get('text')
-                    }, { draggable: true });
-                    this.map.geoObjects.add(placemark);
-                    placemark.events.add('dragstart', (e) => this.pointDragStart(placemark));
-                    placemark.events.add('dragend', (e) => this.pointDragEnd(placemark));
-                    return;
+                const updatedPoint = {
+                    title: newPoints[pointIndex].title,
+                    address: result.geoObjects.get(0).properties.get('text'),
+                    coords: point.geometry.getCoordinates(),
+                    placemark: point
                 }
 
-                window.ymaps.route(newPoints)
-                    .then(route => this.handleAddRoute(route, newPoints))
-                    .catch(err => this.routeBuildingError(err, point));
-            })
-    };
+                newPoints.splice(pointIndex, 1, updatedPoint);
 
-    pointDragStart = point => {
-        this.setState({ draggableInitialCoords: point.geometry.getCoordinates()})
-    }
+                point.properties.set({
+                    balloonContent: `<div><strong>${updatedPoint.title}</strong><p>${updatedPoint.address}</p></div>`
+                })
 
-    routeBuildingError = (err, dragPoint) => {
-        console.log(err);
-        this.map.geoObjects.add(this.state.currentRoute);
-        if (this.state.draggableInitialCoords && dragPoint) {
-            dragPoint.geometry.setCoordinates(this.state.draggableInitialCoords)
-        }
-
-        this.setState({ isError: true })
+                const line = this.buildNewLine(newPoints);
+                
+                this.setState({
+                    points: newPoints,
+                    currentLine: line
+                });
+            })            
     }
 
     handleInputSubmit = (event) => {
         event.persist();
         if (event.target.value && event.keyCode === 13) {
-            this.setState({ inputValue: ''})
-            const reqLocation = event.target.value;
-            console.log(event.target.value)
-            const request = window.ymaps.geocode(reqLocation);
+            const reqValue = event.target.value;
+            this.setState({ ...this.state, inputValue: '' })
+            const request = window.ymaps.geocode(this.map.getCenter());
             request.then(res => {
-                if (!res.geoObjects.get(0)) {
-                    return Promise.reject()
+                const firstRes = res.geoObjects.get(0);
+                const newPoints = this.state.points.slice();
+                const newPoint = {
+                    title: reqValue,
+                    address: firstRes.properties.get('text'),
+                    coords: this.map.getCenter()
                 }
 
-                this.map.geoObjects.removeAll()
+                const placemark = this.putPlacemark(newPoint, newPoints.length + 1);
 
-                const newPoints = this.state.points.slice();
+                newPoints.push({ ...newPoint, placemark });
 
-                newPoints.push(res.geoObjects.get(0).properties.get('text'));
+                const line = this.buildNewLine(newPoints);
 
                 this.setState({
-                    points: newPoints
+                    points: newPoints,
+                    currentLine: line
                 });
-
-                this.map.panTo(res.geoObjects.get(0).geometry.getCoordinates(), {flying: true})
-
-                if (newPoints.length < 2) {
-                    var placemark = new window.ymaps.Placemark(res.geoObjects.get(0).geometry.getCoordinates(), { 
-                        iconContent: 1,
-                        balloonContent: res.geoObjects.get(0).properties.get('text')
-                    }, { draggable: true });
-                    this.map.geoObjects.add(placemark);
-                    placemark.events.add('dragstart', (e) => this.pointDragStart(placemark));
-                    placemark.events.add('dragend', (e) => this.pointDragEnd(placemark));
-                    return;
-                }
-
-                window.ymaps.route(newPoints)
-                    .then(route => this.handleAddRoute(route))
-                    .catch(err => this.routeBuildingError(err, null))
-            
             })
         }
     };
@@ -172,44 +144,29 @@ export default class App extends Component {
         event.stopPropagation()
         const newPoints = this.state.points.slice();
 
-        this.map.geoObjects.removeAll();
+        const pointToDelete = newPoints.find(point => point.title === value);
 
-        const pointToDelete = newPoints.find(point => point === value);
+        this.map.geoObjects.remove(newPoints[newPoints.indexOf(pointToDelete)].placemark);
 
         newPoints.splice(newPoints.indexOf(pointToDelete), 1);
+
+        newPoints.forEach((point, index) => point.placemark.properties.set({
+            iconContent: index + 1
+        }))
 
         if (!newPoints.length) {
             this.setState({
                 points: [],
+                currentLine: null
             });
             return;
         }
 
-        if (newPoints.length === 1) {
-            window.ymaps.geocode(newPoints[0])
-                .then(res => {
-                    var placemark = new window.ymaps.Placemark(res.geoObjects.get(0).geometry.getCoordinates(), { 
-                        iconContent: 1,
-                        balloonContent: res.geoObjects.get(0).properties.get('text')
-                    }, { draggable: true});
-                    this.map.geoObjects.add(placemark);
-                    placemark.events.add('dragstart', (e) => this.pointDragStart(placemark));
-                    placemark.events.add('dragend', (e) => this.pointDragEnd(placemark));
-
-                    this.setState({
-                        points: newPoints,
-                        currentRoute: null
-                    });
-                })
-            return;
-        }
-
-        window.ymaps.route(newPoints)
-            .then(route => this.handleAddRoute(route))
-            .catch(err => this.routeBuildingError(err, null));
+        const line = this.buildNewLine(newPoints);
 
         this.setState({
             points: newPoints,
+            currentLine: line
         });
     }
 
